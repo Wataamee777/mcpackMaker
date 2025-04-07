@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スキンパックメーカー</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    input, button { margin: 10px; }
+    .skin-item { display: flex; align-items: center; justify-content: center; margin: 5px; }
+    .skin-item img { height: 64px; margin-right: 10px; }
+  </style>
+</head>
+<body>
+  <h1>スキンパックメーカー（BE）</h1>
+
+  <label>パック名: <input type="text" id="packName" placeholder="例: MySkinPack" required></label><br>
+  <input type="file" id="fileInput" accept=".png" multiple>
+  <div id="skinsList"></div>
+
+  <button id="generateBtn">.mcpack を生成</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const skinsList = document.getElementById('skinsList');
+    const packNameInput = document.getElementById('packName');
+    let skins = [];
+
+    fileInput.addEventListener('change', (e) => {
+      skins = Array.from(e.target.files);
+      skinsList.innerHTML = '';
+
+      skins.forEach((file, i) => {
+        const item = document.createElement('div');
+        item.className = 'skin-item';
+
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'スキン名';
+        nameInput.value = file.name.replace(/\.png$/, '');
+        nameInput.dataset.index = i;
+
+        item.appendChild(img);
+        item.appendChild(nameInput);
+        skinsList.appendChild(item);
+      });
+    });
+
+    function createUUID() {
+      return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+      );
+    }
+
+    generateBtn.addEventListener('click', async () => {
+      const packName = packNameInput.value.trim();
+      if (!packName) return alert('パック名を入力してください');
+      if (skins.length === 0) return alert('スキンを選んでください');
+
+      const zip = new JSZip();
+      const images = zip.folder('images');
+      const skinEntries = [];
+
+      const inputs = document.querySelectorAll('#skinsList input');
+
+      for (let i = 0; i < skins.length; i++) {
+        const file = skins[i];
+        const displayName = inputs[i].value.trim() || `Skin${i+1}`;
+        const fileName = `skin_${i}.png`;
+
+        const data = await file.arrayBuffer();
+        images.file(fileName, data);
+
+        skinEntries.push({
+          localization_name: displayName,
+          texture: fileName,
+          type: "free"
+        });
+      }
+
+      const manifest = {
+        format_version: 1,
+        header: {
+          name: packName,
+          uuid: createUUID(),
+          version: [1, 0, 0]
+        },
+        modules: [{
+          type: "skin_pack",
+          uuid: createUUID(),
+          version: [1, 0, 0]
+        }]
+      };
+
+      const skinsJson = {
+        localization_name: packName,
+        serialize_name: packName.toLowerCase().replace(/\s/g, "_"),
+        skins: skinEntries,
+        cape: ""
+      };
+
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+      zip.file('skins.json', JSON.stringify(skinsJson, null, 2));
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = `${packName}.mcpack`;
+      a.click();
+    });
+  </script>
+</body>
+</html>
