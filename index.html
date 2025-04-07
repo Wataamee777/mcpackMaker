@@ -62,27 +62,35 @@
       if (skins.length === 0) return alert('スキンを選んでください');
 
       const zip = new JSZip();
-      const images = zip.folder('images');
+      const images = zip.folder('skins');
       const skinEntries = [];
-
+      const localization = [];
       const inputs = document.querySelectorAll('#skinsList input');
 
       for (let i = 0; i < skins.length; i++) {
         const file = skins[i];
-        const displayName = inputs[i].value.trim() || `Skin${i+1}`;
+        const name = inputs[i].value.trim() || `Skin${i+1}`;
         const fileName = `skin_${i}.png`;
 
         const data = await file.arrayBuffer();
         images.file(fileName, data);
 
+        const locName = `skin${i}`;
         skinEntries.push({
-          localization_name: displayName,
+          localization_name: locName,
           texture: fileName,
           type: "free"
         });
+                localization.push(`skin.${locName}=${name}`);
       }
 
-      const manifest = {
+      zip.file("skins.json", JSON.stringify({
+        serialize_name: packName,
+        localization_name: "pack.name",
+        skins: skinEntries
+      }, null, 2));
+
+      zip.file("manifest.json", JSON.stringify({
         format_version: 1,
         header: {
           name: packName,
@@ -94,23 +102,15 @@
           uuid: createUUID(),
           version: [1, 0, 0]
         }]
-      };
+      }, null, 2));
 
-      const skinsJson = {
-        localization_name: packName,
-        serialize_name: packName.toLowerCase().replace(/\s/g, "_"),
-        skins: skinEntries,
-        cape: ""
-      };
-
-      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-      zip.file('skins.json', JSON.stringify(skinsJson, null, 2));
+      zip.file("texts/ja_JP.lang", [`pack.name=${packName}`, ...localization].join('\n'));
 
       const content = await zip.generateAsync({ type: "blob" });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(content);
-      a.download = `${packName}.mcpack`;
-      a.click();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(content);
+      link.download = `${packName}.mcpack`; // ← ここで .mcpack にしている！
+      link.click();
     });
   </script>
 </body>
